@@ -1,5 +1,3 @@
-### K-SNES ###
-
 K-SNES is an Android port of the famous Snes9x Super Nintendo emulator.
 
 ### Features ###
@@ -32,13 +30,18 @@ K-SNES is an Android port of the famous Snes9x Super Nintendo emulator.
 
 Follow these steps to get K-SNES up and running:
 
-TODO
+1. Install the latest version of Android Studio
+2. Inside Android Studio, open the SDK Manager
+3. In the "SDK Platforms" tab, select Android 8.0
+4. In the "SDK Tools" tab, select CMake, LLDB and Android NDK
+5. Click "Apply" and wait for the installation to complete
+6. Since gradle and CMake take care of the building process, you just need to run the project
 
 ### Credits ###
 
 * Charles Nascimento (charles.si.ufs@gmail.com)
-* √çtalo Oliveira ()
-* Ari√™ Rodrigues ()
+* Õtalo Oliveira ()
+* AriÍ Rodrigues ()
 
 ### Donation ###
 
