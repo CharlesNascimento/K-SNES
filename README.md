@@ -40,8 +40,8 @@ Follow these steps to get K-SNES up and running:
 ### Credits ###
 
 * Charles Nascimento (charles.si.ufs@gmail.com)
-* Ítalo Oliveira ()
-* Ariê Rodrigues ()
+* Ãtalo Oliveira ()
+* AriÃª Rodrigues ()
 
 ### Donation ###
 

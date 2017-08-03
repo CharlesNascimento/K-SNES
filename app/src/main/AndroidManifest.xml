@@ -1,8 +1,6 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-		package="com.androidemu.snes"
-		android:versionCode="68"
-		android:versionName="2.1"
-		android:installLocation="preferExternal">
+    package="com.kansus.ksnes"
+    android:installLocation="preferExternal">
 
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
     <uses-permission android:name="android.permission.BLUETOOTH" />
@@ -10,57 +8,71 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.VIBRATE" />
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
-	<uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
 
-	<application android:label="@string/app_label"
-			android:icon="@drawable/app_icon"
+    <application
+        android:allowBackup="true"
         android:fullBackupContent="@xml/backup_descriptor"
-        android:allowBackup="true">
+        android:icon="@drawable/app_icon"
+        android:label="@string/app_label">
 
-		<activity android:name="MainActivity"
-				android:configChanges="orientation|keyboardHidden">
-			<intent-filter>
-				<action android:name="android.intent.action.MAIN" />
-				<category android:name="android.intent.category.DEFAULT" />
-				<category android:name="android.intent.category.LAUNCHER" />
-			</intent-filter>
-		</activity>
+        <activity
+            android:name=".activity.MainActivity"
+            android:configChanges="orientation|keyboardHidden">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
 
-		<activity-alias android:name="CreateShortcuts"
-				android:targetActivity="MainActivity"
-				android:label="@string/launcher_shortcut_name">
-			<intent-filter>
-				<action android:name="android.intent.action.CREATE_SHORTCUT" />
-				<category android:name="android.intent.category.DEFAULT" />
-			</intent-filter>
-		</activity-alias>
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
 
-		<activity android:name="FileChooser" />
-		<activity android:name="StateSlotsActivity"
-				android:theme="@android:style/Theme.Dialog" />
-		<activity android:name="KeyProfilesActivity"/>
-		<activity android:name="HelpActivity" />
-		<activity android:name="DeviceListActivity"
-				android:theme="@android:style/Theme.Dialog"
-				android:configChanges="orientation|keyboardHidden" />
+        <activity-alias
+            android:name="CreateShortcuts"
+            android:label="@string/launcher_shortcut_name"
+            android:targetActivity=".activity.MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.CREATE_SHORTCUT" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity-alias>
 
-		<activity android:name="CheatsActivity" android:process=":emulator"/>
-		<activity android:name="EmulatorSettings" android:process=":emulator"/>
+        <activity android:name=".activity.FileChooser" />
+        <activity
+            android:name=".activity.StateSlotsActivity"
+            android:theme="@android:style/Theme.Dialog" />
+        <activity android:name=".activity.KeyProfilesActivity" />
+        <activity android:name=".activity.HelpActivity" />
+        <activity
+            android:name=".activity.DeviceListActivity"
+            android:configChanges="orientation|keyboardHidden"
+            android:theme="@android:style/Theme.Dialog" />
 
-		<activity android:name="EmulatorActivity"
-				android:process=":emulator"
-				android:launchMode="singleTask"
-				android:configChanges="orientation|keyboardHidden">
-			<intent-filter>
-				<action android:name="android.intent.action.VIEW" />
-				<category android:name="android.intent.category.DEFAULT" />
-				<data android:scheme="file" />
-				<data android:mimeType="application/zip" />
-				<data android:mimeType="application/octet-stream" />
-			</intent-filter>
-		</activity>
+        <activity
+            android:name=".activity.CheatsActivity"
+            android:process=":emulator" />
+        <activity
+            android:name=".activity.EmulatorSettings"
+            android:process=":emulator" />
 
-		<service android:name="EmulatorService" android:process=":emulator"/>
+        <activity
+            android:name=".activity.EmulatorActivity"
+            android:configChanges="orientation|keyboardHidden"
+            android:launchMode="singleTask"
+            android:process=":emulator">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
 
-	</application>
+                <data android:scheme="file" />
+                <data android:mimeType="application/zip" />
+                <data android:mimeType="application/octet-stream" />
+            </intent-filter>
+        </activity>
+
+        <service
+            android:name=".service.EmulatorService"
+            android:process=":emulator" />
+
+    </application>
 </manifest>

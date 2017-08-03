@@ -298,7 +298,7 @@ Emulator_initialize(JNIEnv *env, jobject self, jstring jdir, jint sdk)
 
 	jFrameUpdateListener = NULL;
 	jclass clazz = env->FindClass(
-			"com/androidemu/Emulator$FrameUpdateListener");
+			"com/kansus/ksnes/Emulator$FrameUpdateListener");
 	midOnFrameUpdate = env->GetMethodID(clazz, "onFrameUpdate", "(I)I");
 
 	pthread_mutex_init(&emuStateMutex, NULL);
@@ -409,7 +409,7 @@ Emulator_setOption(JNIEnv *env, jobject self, jstring jname, jstring jvalue)
 		if (strcmp(name, "soundEnabled") == 0)
 			soundEnabled = (strcmp(value, "true") == 0);
 		else if (strcmp(name, "soundVolume") == 0)
-			media->audioSetVolume(env, atoi(value));	
+			media->audioSetVolume(env, atoi(value));
 		else if (strcmp(name, "flipScreen") == 0)
 			flipScreen = (strcmp(value, "true") == 0);
 		engine->setOption(name, value);
@@ -548,7 +548,7 @@ static jboolean Cheats_nativeAdd(JNIEnv *env, jobject self, jstring jcode)
 static void Cheats_nativeRemove(JNIEnv *env, jobject self, jstring jcode)
 {
 	const char *code = env->GetStringUTFChars(jcode, NULL);
-	
+
 	pauseEmulator(env, self);
 	engine->removeCheat(code);
 	resumeEmulator();
@@ -560,7 +560,7 @@ int register_Emulator(JNIEnv *env)
 {
 	static const JNINativeMethod methods[] = {
 		{ "setFrameUpdateListener",
-				"(Lcom/androidemu/Emulator$FrameUpdateListener;)V",
+				"(Lcom/kansus/ksnes/Emulator$FrameUpdateListener;)V",
 				(void *) Emulator_setFrameUpdateListener },
 		{ "setSurface", "(Landroid/view/SurfaceHolder;)V",
 				(void *) Emulator_setSurface },
@@ -593,7 +593,7 @@ int register_Emulator(JNIEnv *env)
 		{ "loadState", "(Ljava/lang/String;)Z", (void *) Emulator_loadState },
 	};
 
-	return jniRegisterNativeMethods(env, "com/androidemu/Emulator",
+	return jniRegisterNativeMethods(env, "com/kansus/ksnes/Emulator",
 			methods, NELEM(methods));
 }
 
@@ -605,6 +605,6 @@ int register_Cheats(JNIEnv *env)
 				(void *) Cheats_nativeRemove },
 	};
 
-	return jniRegisterNativeMethods(env, "com/androidemu/Cheats",
+	return jniRegisterNativeMethods(env, "com/kansus/ksnes/Cheats",
 			methods, NELEM(methods));
 }

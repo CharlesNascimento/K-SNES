@@ -62,7 +62,7 @@ bool EmuMediaImpl::init(JNIEnv *env)
 	screen = NULL;
 	flipScreen = false;
 
-	jPeerClass = env->FindClass("com/androidemu/EmuMedia");
+	jPeerClass = env->FindClass("com/kansus/ksnes/EmuMedia");
 	jPeerClass = (jclass) env->NewGlobalRef(jPeerClass);
 
 	jAudioBuffer = env->NewByteArray(8192);
