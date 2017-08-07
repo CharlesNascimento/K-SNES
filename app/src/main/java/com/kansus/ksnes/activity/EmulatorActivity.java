@@ -14,8 +14,8 @@ import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Rect;
 import android.media.AudioManager;
-import android.net.wifi.WifiManager;
 import android.net.wifi.WifiInfo;
+import android.net.wifi.WifiManager;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Message;
@@ -32,6 +32,21 @@ import android.view.WindowManager;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import com.kansus.ksnes.EmulatorView;
+import com.kansus.ksnes.R;
+import com.kansus.ksnes.abstractemulator.Emulator;
+import com.kansus.ksnes.snes9x.S9xEmulator;
+import com.kansus.ksnes.input.ControlKeys;
+import com.kansus.ksnes.input.GameKeyListener;
+import com.kansus.ksnes.input.Keyboard;
+import com.kansus.ksnes.input.SensorKeypad;
+import com.kansus.ksnes.input.VirtualKeypad;
+import com.kansus.ksnes.media.MediaScanner;
+import com.kansus.ksnes.preference.DefaultPreferences;
+import com.kansus.ksnes.service.EmulatorService;
+import com.kansus.ksnes.service.NetPlayService;
+import com.kansus.ksnes.wrapper.Wrapper;
+
 import java.io.BufferedOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
@@ -43,17 +58,6 @@ import java.nio.ByteBuffer;
 import java.util.regex.Pattern;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
-
-import com.kansus.ksnes.preference.DefaultPreferences;
-import com.kansus.ksnes.EmuMedia;
-import com.kansus.ksnes.Emulator;
-import com.kansus.ksnes.service.EmulatorService;
-import com.kansus.ksnes.EmulatorView;
-import com.kansus.ksnes.media.MediaScanner;
-import com.kansus.ksnes.service.NetPlayService;
-import com.kansus.ksnes.R;
-import com.kansus.ksnes.input.*;
-import com.kansus.ksnes.wrapper.Wrapper;
 
 public class EmulatorActivity extends Activity implements
         Emulator.FrameUpdateListener,
@@ -80,9 +84,9 @@ public class EmulatorActivity extends Activity implements
     private static final int MESSAGE_SYNC_CLIENT = 1000;
 
     private static final int GAMEPAD_LEFT_RIGHT =
-            (Emulator.GAMEPAD_LEFT | Emulator.GAMEPAD_RIGHT);
+            (ControlKeys.GAMEPAD_LEFT | ControlKeys.GAMEPAD_RIGHT);
     private static final int GAMEPAD_UP_DOWN =
-            (Emulator.GAMEPAD_UP | Emulator.GAMEPAD_DOWN);
+            (ControlKeys.GAMEPAD_UP | ControlKeys.GAMEPAD_DOWN);
     private static final int GAMEPAD_DIRECTION =
             (GAMEPAD_UP_DOWN | GAMEPAD_LEFT_RIGHT);
 
@@ -129,9 +133,9 @@ public class EmulatorActivity extends Activity implements
         final SharedPreferences prefs = sharedPrefs;
         prefs.registerOnSharedPreferenceChangeListener(this);
 
-        emulator = Emulator.createInstance(getApplicationContext(),
+        emulator = S9xEmulator.createInstance(getApplicationContext(),
                 getEmulatorEngine(prefs));
-        EmuMedia.setOnFrameDrawnListener(this);
+        emulator.setOnFrameDrawnListener(this);
 
         setContentView(R.layout.emulator);
 
@@ -623,14 +627,14 @@ public class EmulatorActivity extends Activity implements
         int key2 = 0;
 
         if (duration1 < 0)
-            key1 = Emulator.GAMEPAD_LEFT;
+            key1 = ControlKeys.GAMEPAD_LEFT;
         else if (duration1 > 0)
-            key1 = Emulator.GAMEPAD_RIGHT;
+            key1 = ControlKeys.GAMEPAD_RIGHT;
 
         if (duration2 < 0)
-            key2 = Emulator.GAMEPAD_UP;
+            key2 = ControlKeys.GAMEPAD_UP;
         else if (duration2 > 0)
-            key2 = Emulator.GAMEPAD_DOWN;
+            key2 = ControlKeys.GAMEPAD_DOWN;
 
         if (key1 == 0 && key2 == 0)
             return false;
@@ -729,14 +733,14 @@ public class EmulatorActivity extends Activity implements
 
     private int flipGameKeys(int keys) {
         int newKeys = (keys & ~GAMEPAD_DIRECTION);
-        if ((keys & Emulator.GAMEPAD_LEFT) != 0)
-            newKeys |= Emulator.GAMEPAD_RIGHT;
-        if ((keys & Emulator.GAMEPAD_RIGHT) != 0)
-            newKeys |= Emulator.GAMEPAD_LEFT;
-        if ((keys & Emulator.GAMEPAD_UP) != 0)
-            newKeys |= Emulator.GAMEPAD_DOWN;
-        if ((keys & Emulator.GAMEPAD_DOWN) != 0)
-            newKeys |= Emulator.GAMEPAD_UP;
+        if ((keys & ControlKeys.GAMEPAD_LEFT) != 0)
+            newKeys |= ControlKeys.GAMEPAD_RIGHT;
+        if ((keys & ControlKeys.GAMEPAD_RIGHT) != 0)
+            newKeys |= ControlKeys.GAMEPAD_LEFT;
+        if ((keys & ControlKeys.GAMEPAD_UP) != 0)
+            newKeys |= ControlKeys.GAMEPAD_DOWN;
+        if ((keys & ControlKeys.GAMEPAD_DOWN) != 0)
+            newKeys |= ControlKeys.GAMEPAD_UP;
 
         return newKeys;
     }
@@ -760,15 +764,15 @@ public class EmulatorActivity extends Activity implements
     }
 
     private static final int[] SENSOR_MAP_DPAD = {
-            Emulator.GAMEPAD_LEFT,
-            Emulator.GAMEPAD_RIGHT,
-            Emulator.GAMEPAD_UP,
-            Emulator.GAMEPAD_DOWN,
+            ControlKeys.GAMEPAD_LEFT,
+            ControlKeys.GAMEPAD_RIGHT,
+            ControlKeys.GAMEPAD_UP,
+            ControlKeys.GAMEPAD_DOWN,
     };
 
     private static final int[] SENSOR_MAP_TRIGGERS = {
-            Emulator.GAMEPAD_TL,
-            Emulator.GAMEPAD_TR,
+            ControlKeys.GAMEPAD_TL,
+            ControlKeys.GAMEPAD_TR,
             0,
             0
     };
@@ -800,11 +804,11 @@ public class EmulatorActivity extends Activity implements
             keyboard.mapKey(gameKeys[i] << 16,
                     prefs.getInt(gameKeysPref[i], 0));
         }
-        keyboard.mapKey(Emulator.GAMEPAD_SUPERSCOPE_TURBO,
+        keyboard.mapKey(ControlKeys.GAMEPAD_SUPERSCOPE_TURBO,
                 prefs.getInt("gamepad_superscope_turbo", 0));
-        keyboard.mapKey(Emulator.GAMEPAD_SUPERSCOPE_PAUSE,
+        keyboard.mapKey(ControlKeys.GAMEPAD_SUPERSCOPE_PAUSE,
                 prefs.getInt("gamepad_superscope_pause", 0));
-        keyboard.mapKey(Emulator.GAMEPAD_SUPERSCOPE_CURSOR,
+        keyboard.mapKey(ControlKeys.GAMEPAD_SUPERSCOPE_CURSOR,
                 prefs.getInt("gamepad_superscope_cursor", 0));
     }
 
@@ -1348,16 +1352,13 @@ class InetAddressUtils {
     }
 
     private static final Pattern IPV4_PATTERN =
-            Pattern.compile(
-                    "^(25[0-5]|2[0-4]\\d|[0-1]?\\d?\\d)(\\.(25[0-5]|2[0-4]\\d|[0-1]?\\d?\\d)){3}$");
+            Pattern.compile("^(25[0-5]|2[0-4]\\d|[0-1]?\\d?\\d)(\\.(25[0-5]|2[0-4]\\d|[0-1]?\\d?\\d)){3}$");
 
     private static final Pattern IPV6_STD_PATTERN =
-            Pattern.compile(
-                    "^(?:[0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}$");
+            Pattern.compile("^(?:[0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}$");
 
     private static final Pattern IPV6_HEX_COMPRESSED_PATTERN =
-            Pattern.compile(
-                    "^((?:[0-9A-Fa-f]{1,4}(?::[0-9A-Fa-f]{1,4})*)?)::((?:[0-9A-Fa-f]{1,4}(?::[0-9A-Fa-f]{1,4})*)?)$");
+            Pattern.compile("^((?:[0-9A-Fa-f]{1,4}(?::[0-9A-Fa-f]{1,4})*)?)::((?:[0-9A-Fa-f]{1,4}(?::[0-9A-Fa-f]{1,4})*)?)$");
 
     public static boolean isIPv4Address(final String input) {
         return IPV4_PATTERN.matcher(input).matches();
@@ -1374,5 +1375,4 @@ class InetAddressUtils {
     public static boolean isIPv6Address(final String input) {
         return isIPv6StdAddress(input) || isIPv6HexCompressedAddress(input);
     }
-
 }

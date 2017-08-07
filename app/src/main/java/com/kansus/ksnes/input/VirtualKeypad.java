@@ -13,26 +13,25 @@ import android.preference.PreferenceManager;
 import android.view.MotionEvent;
 import android.view.View;
 
-import java.util.ArrayList;
-
-import com.kansus.ksnes.Emulator;
 import com.kansus.ksnes.R;
 import com.kansus.ksnes.wrapper.Wrapper;
+
+import java.util.ArrayList;
 
 public class VirtualKeypad {
 
     private static final int DPAD_4WAY[] = {
-            Emulator.GAMEPAD_LEFT,
-            Emulator.GAMEPAD_UP,
-            Emulator.GAMEPAD_RIGHT,
-            Emulator.GAMEPAD_DOWN
+            ControlKeys.GAMEPAD_LEFT,
+            ControlKeys.GAMEPAD_UP,
+            ControlKeys.GAMEPAD_RIGHT,
+            ControlKeys.GAMEPAD_DOWN
     };
 
     private static final int BUTTONS_4WAY[] = {
-            Emulator.GAMEPAD_Y,
-            Emulator.GAMEPAD_X,
-            Emulator.GAMEPAD_A,
-            Emulator.GAMEPAD_B
+            ControlKeys.GAMEPAD_Y,
+            ControlKeys.GAMEPAD_X,
+            ControlKeys.GAMEPAD_A,
+            ControlKeys.GAMEPAD_B
     };
 
     private static final float DPAD_DEADZONE_VALUES[] = {
@@ -60,8 +59,6 @@ public class VirtualKeypad {
     private Control selectStart;
     private Control leftShoulder;
     private Control rightShoulder;
-
-    private Emulator emulator = Emulator.getInstance();
 
     public VirtualKeypad(View v, GameKeyListener l) {
         view = v;
@@ -278,13 +275,13 @@ public class VirtualKeypad {
         int states = 0;
 
         if (x < cx - dpadDeadZone)
-            states |= Emulator.GAMEPAD_LEFT;
+            states |= ControlKeys.GAMEPAD_LEFT;
         else if (x > cx + dpadDeadZone)
-            states |= Emulator.GAMEPAD_RIGHT;
+            states |= ControlKeys.GAMEPAD_RIGHT;
         if (y < cy - dpadDeadZone)
-            states |= Emulator.GAMEPAD_UP;
+            states |= ControlKeys.GAMEPAD_UP;
         else if (y > cy + dpadDeadZone)
-            states |= Emulator.GAMEPAD_DOWN;
+            states |= ControlKeys.GAMEPAD_DOWN;
 
         return states;
     }
@@ -294,13 +291,13 @@ public class VirtualKeypad {
 
         if (size > pointSizeThreshold) {
             switch (states) {
-                case Emulator.GAMEPAD_Y:
-                case Emulator.GAMEPAD_B:
-                    states = (Emulator.GAMEPAD_Y | Emulator.GAMEPAD_B);
+                case ControlKeys.GAMEPAD_Y:
+                case ControlKeys.GAMEPAD_B:
+                    states = (ControlKeys.GAMEPAD_Y | ControlKeys.GAMEPAD_B);
                     break;
-                case Emulator.GAMEPAD_X:
-                case Emulator.GAMEPAD_A:
-                    states = (Emulator.GAMEPAD_X | Emulator.GAMEPAD_A);
+                case ControlKeys.GAMEPAD_X:
+                case ControlKeys.GAMEPAD_A:
+                    states = (ControlKeys.GAMEPAD_X | ControlKeys.GAMEPAD_A);
                     break;
             }
         }
@@ -308,7 +305,7 @@ public class VirtualKeypad {
     }
 
     private int getSelectStartStates(float x, float y) {
-        return (x < 0.5f ? Emulator.GAMEPAD_SELECT : Emulator.GAMEPAD_START);
+        return (x < 0.5f ? ControlKeys.GAMEPAD_SELECT : ControlKeys.GAMEPAD_START);
     }
 
     private float getEventX(MotionEvent event, int index, boolean flip) {
@@ -344,9 +341,9 @@ public class VirtualKeypad {
         if (c == selectStart)
             return getSelectStartStates(x, y);
         if (c == leftShoulder)
-            return Emulator.GAMEPAD_TL;
+            return ControlKeys.GAMEPAD_TL;
         if (c == rightShoulder)
-            return Emulator.GAMEPAD_TR;
+            return ControlKeys.GAMEPAD_TR;
 
         return 0;
     }

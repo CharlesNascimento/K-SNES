@@ -12,29 +12,11 @@ android {
 
         testInstrumentationRunner "android.support.test.runner.AndroidJUnitRunner"
 
-        ndk {
-            abiFilters 'armeabi', 'armeabi-v7a'
-        }
-
-        externalNativeBuild {
-            cmake {
-                arguments "-DANDROID_ARM_NEON=TRUE", "-DANDROID_TOOLCHAIN=clang"
-                cFlags "-fexceptions", "-frtti"
-                cppFlags "-D__STDC_FORMAT_MACROS"
-            }
-        }
     }
-
     buildTypes {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
-        }
-    }
-
-    externalNativeBuild {
-        ndkBuild {
-            path 'src/main/cpp/Android.mk'
         }
     }
 }
@@ -46,5 +28,4 @@ dependencies {
     })
     compile 'com.android.support:appcompat-v7:26.+'
     testCompile 'junit:junit:4.12'
-    compile project(path: ':abstractemulator')
 }

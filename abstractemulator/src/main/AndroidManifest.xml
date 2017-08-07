@@ -1,6 +1,5 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-
-    package="com.kansus.ksnes.snes9x">
+    package="com.kansus.ksnes.abstractemulator">
 
     <application
         android:allowBackup="true"

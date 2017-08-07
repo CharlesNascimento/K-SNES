@@ -3,6 +3,7 @@
   <component name="ProjectModuleManager">
     <modules>
       <module fileurl="file://$PROJECT_DIR$/K-SNES.iml" filepath="$PROJECT_DIR$/K-SNES.iml" />
+      <module fileurl="file://$PROJECT_DIR$/abstractemulator/abstractemulator.iml" filepath="$PROJECT_DIR$/abstractemulator/abstractemulator.iml" />
       <module fileurl="file://$PROJECT_DIR$/app/app.iml" filepath="$PROJECT_DIR$/app/app.iml" />
       <module fileurl="file://$PROJECT_DIR$/emulator/emulator.iml" filepath="$PROJECT_DIR$/emulator/emulator.iml" />
       <module fileurl="file://$PROJECT_DIR$/input/input.iml" filepath="$PROJECT_DIR$/input/input.iml" />

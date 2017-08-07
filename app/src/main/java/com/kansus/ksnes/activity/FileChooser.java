@@ -21,8 +21,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-public class FileChooser extends ListActivity implements
-		FileFilter, View.OnClickListener, View.OnKeyListener {
+public class FileChooser extends ListActivity implements FileFilter, View.OnClickListener, View.OnKeyListener {
 
 	public static final String EXTRA_TITLE = "title";
 	public static final String EXTRA_FILTERS = "filters";

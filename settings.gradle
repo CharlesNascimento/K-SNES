@@ -1,1 +1,1 @@
-include ':app', ':multiplayer', ':input', ':roms', ':preferences', ':emulator'
+include ':app', ':multiplayer', ':input', ':roms', ':preferences', ':emulator', ':abstractemulator'

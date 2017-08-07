@@ -16,14 +16,13 @@ import java.util.ArrayList;
 import java.util.Map;
 import java.util.TreeMap;
 
+import com.kansus.ksnes.input.ControlKeys;
 import com.kansus.ksnes.preference.DefaultPreferences;
-import com.kansus.ksnes.Emulator;
 import com.kansus.ksnes.preference.KeyPreference;
 import com.kansus.ksnes.R;
 import com.kansus.ksnes.wrapper.Wrapper;
 
-public class EmulatorSettings extends PreferenceActivity
-        implements Preference.OnPreferenceChangeListener {
+public class EmulatorSettings extends PreferenceActivity implements Preference.OnPreferenceChangeListener {
 
     private static final String SEARCH_ROM_URI =
             "http://www.romfind.com/snes-roms.html?sid=YONG";
@@ -37,22 +36,22 @@ public class EmulatorSettings extends PreferenceActivity
     private static final int REQUEST_SAVE_KEY_PROFILE = 2;
 
     public static final int[] gameKeys = {
-            Emulator.GAMEPAD_UP,
-            Emulator.GAMEPAD_DOWN,
-            Emulator.GAMEPAD_LEFT,
-            Emulator.GAMEPAD_RIGHT,
-            Emulator.GAMEPAD_UP_LEFT,
-            Emulator.GAMEPAD_UP_RIGHT,
-            Emulator.GAMEPAD_DOWN_LEFT,
-            Emulator.GAMEPAD_DOWN_RIGHT,
-            Emulator.GAMEPAD_SELECT,
-            Emulator.GAMEPAD_START,
-            Emulator.GAMEPAD_A,
-            Emulator.GAMEPAD_B,
-            Emulator.GAMEPAD_X,
-            Emulator.GAMEPAD_Y,
-            Emulator.GAMEPAD_TL,
-            Emulator.GAMEPAD_TR,
+            ControlKeys.GAMEPAD_UP,
+            ControlKeys.GAMEPAD_DOWN,
+            ControlKeys.GAMEPAD_LEFT,
+            ControlKeys.GAMEPAD_RIGHT,
+            ControlKeys.GAMEPAD_UP_LEFT,
+            ControlKeys.GAMEPAD_UP_RIGHT,
+            ControlKeys.GAMEPAD_DOWN_LEFT,
+            ControlKeys.GAMEPAD_DOWN_RIGHT,
+            ControlKeys.GAMEPAD_SELECT,
+            ControlKeys.GAMEPAD_START,
+            ControlKeys.GAMEPAD_A,
+            ControlKeys.GAMEPAD_B,
+            ControlKeys.GAMEPAD_X,
+            ControlKeys.GAMEPAD_Y,
+            ControlKeys.GAMEPAD_TL,
+            ControlKeys.GAMEPAD_TR,
     };
 
     public static final String[] gameKeysPref = {

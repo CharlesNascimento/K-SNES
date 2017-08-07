@@ -15,9 +15,10 @@ import android.widget.ListView;
 import android.widget.TextView;
 import android.widget.Toast;
 
-import com.kansus.ksnes.Cheats;
-import com.kansus.ksnes.Emulator;
 import com.kansus.ksnes.R;
+import com.kansus.ksnes.abstractemulator.Cheat;
+import com.kansus.ksnes.abstractemulator.CheatManager;
+import com.kansus.ksnes.snes9x.S9xEmulator;
 
 import java.util.List;
 
@@ -28,15 +29,15 @@ public class CheatsActivity extends ListActivity {
 
     private static final int DIALOG_EDIT_CHEAT = 1;
 
-    private Cheats cheats = Emulator.getInstance().getCheats();
-    private ArrayAdapter<Cheats.Item> adapter;
-    private static Cheats.Item currentCheat;
+    private CheatManager cheats = S9xEmulator.getInstance().getCheats();
+    private ArrayAdapter<Cheat> adapter;
+    private static Cheat currentCheat;
 
     private void syncCheckedStates() {
-        final List<Cheats.Item> items = cheats.getAll();
+        final List<Cheat> cheats = this.cheats.getAll();
         final ListView listView = getListView();
-        for (int i = 0; i < items.size(); i++)
-            listView.setItemChecked(i, items.get(i).enabled);
+        for (int i = 0; i < cheats.size(); i++)
+            listView.setItemChecked(i, cheats.get(i).enabled);
     }
 
     @Override
@@ -47,7 +48,7 @@ public class CheatsActivity extends ListActivity {
         setContentView(R.layout.cheats);
         getListView().setEmptyView(findViewById(R.id.empty));
 
-        adapter = new ArrayAdapter<Cheats.Item>(this,
+        adapter = new ArrayAdapter<Cheat>(this,
                 android.R.layout.simple_list_item_multiple_choice,
                 cheats.getAll());
         setListAdapter(adapter);
@@ -68,7 +69,7 @@ public class CheatsActivity extends ListActivity {
     }
 
     private void addCheat(String code, String name) {
-        Cheats.Item c = cheats.add(code, name);
+        Cheat c = cheats.add(code, name);
         if (c == null) {
             Toast.makeText(this, R.string.invalid_cheat_code,
                     Toast.LENGTH_SHORT).show();
@@ -166,7 +167,7 @@ public class CheatsActivity extends ListActivity {
 
         switch (item.getItemId()) {
             case MENU_ITEM_EDIT:
-                currentCheat = (Cheats.Item) adapter.getItem(info.position);
+                currentCheat = (Cheat) adapter.getItem(info.position);
                 showDialog(DIALOG_EDIT_CHEAT);
                 return true;
 
