@@ -1,5 +1,6 @@
 package com.kansus.ksnes.activity;
 
+import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.app.Dialog;
@@ -11,64 +12,65 @@ import android.content.SharedPreferences;
 import android.content.pm.ActivityInfo;
 import android.content.res.Configuration;
 import android.graphics.Bitmap;
-import android.graphics.Canvas;
-import android.graphics.Rect;
 import android.media.AudioManager;
 import android.net.wifi.WifiInfo;
 import android.net.wifi.WifiManager;
 import android.os.Bundle;
+import android.os.Environment;
 import android.os.Handler;
 import android.os.Message;
 import android.preference.PreferenceManager;
+import android.support.annotation.NonNull;
 import android.util.Log;
 import android.view.KeyEvent;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.MotionEvent;
-import android.view.SurfaceHolder;
 import android.view.View;
 import android.view.Window;
 import android.view.WindowManager;
+import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
 
-import com.kansus.ksnes.EmulatorView;
+import com.kansus.ksnes.DefaultVideoModule;
+import com.kansus.ksnes.InetAddressUtils;
+import com.kansus.ksnes.KSNESApplication;
 import com.kansus.ksnes.R;
 import com.kansus.ksnes.abstractemulator.Emulator;
-import com.kansus.ksnes.snes9x.S9xEmulator;
-import com.kansus.ksnes.input.ControlKeys;
-import com.kansus.ksnes.input.GameKeyListener;
-import com.kansus.ksnes.input.Keyboard;
-import com.kansus.ksnes.input.SensorKeypad;
-import com.kansus.ksnes.input.VirtualKeypad;
+import com.kansus.ksnes.abstractemulator.input.InputModule;
+import com.kansus.ksnes.abstractemulator.multiplayer.MultiPlayerModule;
+import com.kansus.ksnes.abstractemulator.video.VideoModule;
+import com.kansus.ksnes.dagger.DaggerDgEmulatorComponent;
+import com.kansus.ksnes.dagger.DgActivityModule;
+import com.kansus.ksnes.dagger.DgEmulatorComponent;
+import com.kansus.ksnes.dagger.DgEmulatorModule;
 import com.kansus.ksnes.media.MediaScanner;
-import com.kansus.ksnes.preference.DefaultPreferences;
 import com.kansus.ksnes.service.EmulatorService;
 import com.kansus.ksnes.service.NetPlayService;
-import com.kansus.ksnes.wrapper.Wrapper;
 
 import java.io.BufferedOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.lang.ref.WeakReference;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
-import java.util.regex.Pattern;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
+import javax.inject.Inject;
+
 public class EmulatorActivity extends Activity implements
-        Emulator.FrameUpdateListener,
-        SharedPreferences.OnSharedPreferenceChangeListener,
-        SurfaceHolder.Callback,
-        View.OnTouchListener,
-        EmulatorView.OnTrackballListener,
-        Emulator.OnFrameDrawnListener,
-        GameKeyListener {
+        MultiPlayerModule.FrameUpdateListener,
+        SharedPreferences.OnSharedPreferenceChangeListener {
 
     private static final String LOG_TAG = "K-SNES";
+
+    private static String SCREENSHOTS_FOLDER = Environment
+            .getExternalStorageDirectory().getPath() + "K-NES Screenshots";
 
     private static final int REQUEST_LOAD_STATE = 1;
     private static final int REQUEST_SAVE_STATE = 2;
@@ -83,39 +85,26 @@ public class EmulatorActivity extends Activity implements
     private static final int NETPLAY_TCP_PORT = 5369;
     private static final int MESSAGE_SYNC_CLIENT = 1000;
 
-    private static final int GAMEPAD_LEFT_RIGHT =
-            (ControlKeys.GAMEPAD_LEFT | ControlKeys.GAMEPAD_RIGHT);
-    private static final int GAMEPAD_UP_DOWN =
-            (ControlKeys.GAMEPAD_UP | ControlKeys.GAMEPAD_DOWN);
-    private static final int GAMEPAD_DIRECTION =
-            (GAMEPAD_UP_DOWN | GAMEPAD_LEFT_RIGHT);
+    @Inject
+    Emulator mEmulator;
 
-    private Emulator emulator;
-    private EmulatorView emulatorView;
-    private Rect surfaceRegion = new Rect();
-    private int surfaceWidth;
-    private int surfaceHeight;
-
-    private Keyboard keyboard;
-    private VirtualKeypad vkeypad;
-    private SensorKeypad sensor;
-    private int[] sensorMappings;
-    private boolean lightGunEnabled;
-    private boolean flipScreen;
-    private boolean inFastForward;
-    private float fastForwardSpeed;
-    private int trackballSensitivity;
+    private VideoModule mVideoModule;
 
     private int quickLoadKey;
     private int quickSaveKey;
     private int fastForwardKey;
     private int screenshotKey;
 
+    private boolean inFastForward;
+    private float fastForwardSpeed;
+
     private SharedPreferences sharedPrefs;
     private Intent newIntent;
     private MediaScanner mediaScanner;
+
     private NetWaitDialog waitDialog;
     private NetPlayService netPlayService;
+    private NetPlayHandler netPlayHandler = new NetPlayHandler(this);
     private int autoSyncClientInterval;
 
     @Override
@@ -133,19 +122,17 @@ public class EmulatorActivity extends Activity implements
         final SharedPreferences prefs = sharedPrefs;
         prefs.registerOnSharedPreferenceChangeListener(this);
 
-        emulator = S9xEmulator.createInstance(getApplicationContext(),
-                getEmulatorEngine(prefs));
-        emulator.setOnFrameDrawnListener(this);
+        DgEmulatorComponent component = DaggerDgEmulatorComponent.builder()
+                .dgApplicationComponent(((KSNESApplication)getApplication()).getApplicationComponent())
+                .dgActivityModule(new DgActivityModule(this))
+                .dgEmulatorModule(new DgEmulatorModule())
+                .build();
+        component.inject(this);
 
         setContentView(R.layout.emulator);
 
-        emulatorView = findViewById(R.id.emulator);
-        emulatorView.getHolder().addCallback(this);
-        emulatorView.setOnTouchListener(this);
-        emulatorView.requestFocus();
-
-        // keyboard is always present
-        keyboard = new Keyboard(emulatorView, this);
+        setupEmulatorView();
+        mVideoModule = mEmulator.getVideoModule();
 
         final String[] prefKeys = {
                 "fullScreenMode",
@@ -176,27 +163,42 @@ public class EmulatorActivity extends Activity implements
                 "screenshot",
         };
 
-        for (String key : prefKeys)
+        for (String key : prefKeys) {
             onSharedPreferenceChanged(prefs, key);
-        loadKeyBindings(prefs);
+        }
 
-        emulator.setOption("enableSRAM", true);
-        emulator.setOption("apuEnabled", prefs.getBoolean("apuEnabled", true));
+        mEmulator.getInputModule().loadKeyBindings(prefs);
+
+        mEmulator.setOption("enableSRAM", true);
+        mEmulator.setOption("apuEnabled", prefs.getBoolean("apuEnabled", true));
 
         if (!loadROM()) {
             finish();
             return;
         }
-        startService(new Intent(this, EmulatorService.class).
-                setAction(EmulatorService.ACTION_FOREGROUND));
+        startService(new Intent(this, EmulatorService.class).setAction(EmulatorService.ACTION_FOREGROUND));
+    }
+
+    private void setupEmulatorView() {
+        if (mEmulator.getVideoModule() instanceof View) {
+            LinearLayout myLayout = findViewById(R.id.main);
+
+            View emulatorView = (View) mEmulator.getVideoModule();
+            emulatorView.setLayoutParams(new LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.MATCH_PARENT));
+
+            myLayout.addView(emulatorView);
+            emulatorView.requestFocus();
+        }
     }
 
     @Override
     protected void onDestroy() {
         super.onDestroy();
 
-        if (emulator != null)
-            emulator.unloadROM();
+        if (mEmulator != null)
+            mEmulator.unloadROM();
         onDisconnect();
 
         stopService(new Intent(this, EmulatorService.class));
@@ -207,16 +209,14 @@ public class EmulatorActivity extends Activity implements
         super.onPause();
 
         pauseEmulator();
-        if (sensor != null)
-            sensor.setGameKeyListener(null);
+        mEmulator.getInputModule().disable();
     }
 
     @Override
     protected void onResume() {
         super.onResume();
 
-        if (sensor != null)
-            sensor.setGameKeyListener(this);
+        mEmulator.getInputModule().enable();
     }
 
     @Override
@@ -231,15 +231,13 @@ public class EmulatorActivity extends Activity implements
         super.onWindowFocusChanged(hasFocus);
 
         if (hasFocus) {
-            // reset keys
-            keyboard.reset();
-            if (vkeypad != null)
-                vkeypad.reset();
-            emulator.setKeyStates(0);
+            mEmulator.getInputModule().reset();
+            mEmulator.setKeyStates(0);
 
-            emulator.resume();
-        } else
-            emulator.pause();
+            mEmulator.resume();
+        } else {
+            mEmulator.pause();
+        }
     }
 
     @Override
@@ -270,9 +268,9 @@ public class EmulatorActivity extends Activity implements
     protected void onPrepareDialog(int id, Dialog dialog) {
         switch (id) {
             case DIALOG_WIFI_CONNECT:
-                TextView v = (TextView) dialog.findViewById(R.id.port);
+                TextView v = dialog.findViewById(R.id.port);
                 if (v.getText().length() == 0)
-                    v.setText(Integer.toString(NETPLAY_TCP_PORT));
+                    v.setText(String.valueOf(NETPLAY_TCP_PORT));
                 break;
         }
     }
@@ -296,8 +294,7 @@ public class EmulatorActivity extends Activity implements
             return true;
         }
         // ignore keys that would annoy the user
-        if (keyCode == KeyEvent.KEYCODE_CAMERA ||
-                keyCode == KeyEvent.KEYCODE_SEARCH)
+        if (keyCode == KeyEvent.KEYCODE_CAMERA || keyCode == KeyEvent.KEYCODE_SEARCH)
             return true;
 
         if (keyCode == KeyEvent.KEYCODE_BACK) {
@@ -314,7 +311,7 @@ public class EmulatorActivity extends Activity implements
 
         getMenuInflater().inflate(R.menu.emulator, menu);
 
-        if (!Wrapper.isBluetoothPresent()) {
+        if (BluetoothAdapter.getDefaultAdapter() == null) {
             menu.findItem(R.id.menu_bluetooth_server).setVisible(false);
             menu.findItem(R.id.menu_bluetooth_client).setVisible(false);
         }
@@ -333,11 +330,10 @@ public class EmulatorActivity extends Activity implements
         menu.findItem(R.id.menu_cheats).setVisible(!netplay);
         menu.findItem(R.id.menu_fast_forward).setVisible(!netplay);
 
-        menu.findItem(R.id.menu_cheats).setEnabled(
-                emulator.getCheats() != null);
-        menu.findItem(R.id.menu_fast_forward).setTitle(
-                inFastForward ? R.string.no_fast_forward :
-                        R.string.fast_forward);
+        menu.findItem(R.id.menu_cheats).setEnabled(mEmulator.getCheatsModule() != null);
+        int fastForwardTitle = inFastForward ? R.string.no_fast_forward : R.string.fast_forward;
+        menu.findItem(R.id.menu_fast_forward).setTitle(fastForwardTitle);
+
         return true;
     }
 
@@ -352,8 +348,9 @@ public class EmulatorActivity extends Activity implements
                 try {
                     if (netPlayService != null)
                         netPlayService.sendResetROM();
-                    emulator.reset();
+                    mEmulator.reset();
                 } catch (IOException e) {
+                    Log.e(LOG_TAG, e.getMessage());
                 }
                 return true;
 
@@ -435,8 +432,8 @@ public class EmulatorActivity extends Activity implements
 
             case REQUEST_BT_DEVICE:
                 if (result == RESULT_OK) {
-                    String address = data.getExtras().
-                            getString(DeviceListActivity.EXTRA_DEVICE_ADDRESS);
+                    String address = data.getExtras()
+                            .getString(DeviceListActivity.EXTRA_DEVICE_ADDRESS);
                     onBluetoothConnect(address);
                 }
                 break;
@@ -447,20 +444,54 @@ public class EmulatorActivity extends Activity implements
         return (p2 << 16) | (p1 & 0xffff);
     }
 
-    public int onFrameUpdate(int keys)
-            throws IOException, InterruptedException {
-
+    @Override
+    public int onFrameUpdate(int keys) throws IOException, InterruptedException {
         final int remote = netPlayService.sendFrameUpdate(keys);
-        if (netPlayService.isServer())
+
+        if (netPlayService.isServer()) {
             return makeKeyStates(keys, remote);
-        else
+        } else {
             return makeKeyStates(remote, keys);
+        }
     }
 
+    @Override
     public void onSharedPreferenceChanged(SharedPreferences prefs, String key) {
         if (key.startsWith("gamepad")) {
-            loadKeyBindings(prefs);
+            mEmulator.getInputModule().loadKeyBindings(prefs);
 
+        } if ("enableLightGun".equals(key)) {
+            boolean lightGunEnabled = prefs.getBoolean(key, false);
+            mEmulator.getInputModule().setLightGunEnabled(lightGunEnabled);
+            mEmulator.setOption(key, lightGunEnabled);
+
+        } else if ("enableTrackball".equals(key)) {
+            boolean trackballEnabled = prefs.getBoolean(key, true);
+            InputModule inputModule = mEmulator.getInputModule();
+            inputModule.setTrackballEnabled(true);
+
+            mVideoModule.setOnTrackballListener(trackballEnabled ? inputModule : null);
+
+        } else if ("trackballSensitivity".equals(key)) {
+            int trackballSensitivity = prefs.getInt(key, 2) * 5 + 10;
+            mEmulator.getInputModule().setTrackballSensitivity(trackballSensitivity);
+
+        } else if ("useSensor".equals(key)) {
+            boolean useSensor = prefs.getString(key, null) != null;
+            mEmulator.getInputModule().setSensorInputSourceEnabled(useSensor);
+
+            if (useSensor) {
+                mEmulator.getInputModule().getInputSensor().setSensitivity(prefs.getInt(key, 7));
+            }
+
+        } else if ("sensorSensitivity".equals(key)) {
+            if (mEmulator.getInputModule().getInputSensor() != null) {
+                mEmulator.getInputModule().getInputSensor().setSensitivity(prefs.getInt(key, 7));
+            }
+
+        } else if ("enableVKeypad".equals(key)) {
+            boolean enableVirtualKeypad = prefs.getBoolean(key, true);
+            mEmulator.getInputModule().setTouchInputSourceEnabled(enableVirtualKeypad);
         } else if ("fullScreenMode".equals(key)) {
             WindowManager.LayoutParams attrs = getWindow().getAttributes();
             if (prefs.getBoolean("fullScreenMode", true))
@@ -474,96 +505,77 @@ public class EmulatorActivity extends Activity implements
 
         } else if ("fastForwardSpeed".equals(key)) {
             String value = prefs.getString(key, "2x");
-            fastForwardSpeed = Float.parseFloat(
-                    value.substring(0, value.length() - 1));
+            fastForwardSpeed = Float.parseFloat(value.substring(0, value.length() - 1));
             if (inFastForward)
                 setGameSpeed(fastForwardSpeed);
 
         } else if ("frameSkipMode".equals(key)) {
-            emulator.setOption(key, prefs.getString(key, "auto"));
+            mEmulator.setOption(key, prefs.getString(key, "auto"));
 
         } else if ("maxFrameSkips".equals(key)) {
-            emulator.setOption(key, Integer.toString(prefs.getInt(key, 2)));
+            mEmulator.setOption(key, Integer.toString(prefs.getInt(key, 2)));
 
         } else if ("maxFramesAhead".equals(key)) {
             if (netPlayService != null)
                 netPlayService.setMaxFramesAhead(prefs.getInt(key, 0));
 
-        } else if ("autoSyncClient".equals(key) ||
-                "autoSyncClientInterval".equals(key)) {
-
+        } else if ("autoSyncClient".equals(key) || "autoSyncClientInterval".equals(key)) {
             if (netPlayService != null && netPlayService.isServer()) {
                 stopAutoSyncClient();
                 if (sharedPrefs.getBoolean("autoSyncClient", false)) {
-                    autoSyncClientInterval = Integer.valueOf(sharedPrefs.
-                            getString("autoSyncClientInterval", "30"));
+                    String prefVal = sharedPrefs.getString("autoSyncClientInterval", "30");
+                    autoSyncClientInterval = Integer.valueOf(prefVal);
                     autoSyncClientInterval *= 1000;
                     startAutoSyncClient();
                 }
             }
-        } else if ("refreshRate".equals(key)) {
-            emulator.setOption(key, prefs.getString(key, "default"));
 
-        } else if ("enableLightGun".equals(key)) {
-            lightGunEnabled = prefs.getBoolean(key, false);
-            emulator.setOption(key, lightGunEnabled);
+        } else if ("refreshRate".equals(key)) {
+            mEmulator.setOption(key, prefs.getString(key, "default"));
 
         } else if ("enableGamepad2".equals(key)) {
-            emulator.setOption(key, prefs.getBoolean(key, false));
+            mEmulator.setOption(key, prefs.getBoolean(key, false));
 
         } else if ("soundEnabled".equals(key)) {
-            emulator.setOption(key, prefs.getBoolean(key, true));
+            mEmulator.setOption(key, prefs.getBoolean(key, true));
 
         } else if ("soundVolume".equals(key)) {
-            emulator.setOption(key, prefs.getInt(key, 100));
+            mEmulator.setOption(key, prefs.getInt(key, 100));
 
         } else if ("transparencyEnabled".equals(key)) {
-            emulator.setOption(key, prefs.getBoolean(key, false));
+            mEmulator.setOption(key, prefs.getBoolean(key, false));
 
         } else if ("enableHiRes".equals(key)) {
-            emulator.setOption(key, prefs.getBoolean(key, true));
-
-        } else if ("enableTrackball".equals(key)) {
-            emulatorView.setOnTrackballListener(
-                    prefs.getBoolean(key, true) ? this : null);
-
-        } else if ("trackballSensitivity".equals(key)) {
-            trackballSensitivity = prefs.getInt(key, 2) * 5 + 10;
-
-        } else if ("useSensor".equals(key)) {
-            sensorMappings = getSensorMappings(prefs.getString(key, null));
-            if (sensorMappings == null)
-                sensor = null;
-            else if (sensor == null) {
-                sensor = new SensorKeypad(this);
-                sensor.setSensitivity(prefs.getInt("sensorSensitivity", 7));
-            }
-        } else if ("sensorSensitivity".equals(key)) {
-            if (sensor != null)
-                sensor.setSensitivity(prefs.getInt(key, 7));
-
-        } else if ("enableVKeypad".equals(key)) {
-            if (!prefs.getBoolean(key, true)) {
-                if (vkeypad != null) {
-                    vkeypad.destroy();
-                    vkeypad = null;
-                }
-            } else if (vkeypad == null)
-                vkeypad = new VirtualKeypad(emulatorView, this);
+            mEmulator.setOption(key, prefs.getBoolean(key, true));
 
         } else if ("scalingMode".equals(key)) {
-            emulatorView.setScalingMode(getScalingMode(
-                    prefs.getString(key, "proportional")));
+            mVideoModule.setScalingMode(getScalingMode(prefs.getString(key, "proportional")));
 
         } else if ("aspectRatio".equals(key)) {
             float ratio = Float.parseFloat(prefs.getString(key, "1.3333"));
-            emulatorView.setAspectRatio(ratio);
+            mVideoModule.setAspectRatio(ratio);
 
         } else if ("enableCheats".equals(key)) {
-            emulator.enableCheats(prefs.getBoolean(key, true));
+            boolean enable = prefs.getBoolean(key, true);
+            if (enable) {
+                mEmulator.getCheatsModule().enable();
+            } else {
+                mEmulator.getCheatsModule().disable();
+            }
 
         } else if ("orientation".equals(key)) {
-            //setRequestedOrientation(getScreenOrientation(prefs.getString(key, "unspecified")));
+            String orientation = prefs.getString(key, "unspecified");
+            switch (orientation) {
+                case "landscape":
+                    setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE);
+                    break;
+                case "portrait":
+                    setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
+                    break;
+                default:
+                    setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED);
+                    break;
+            }
 
         } else if ("useInputMethod".equals(key)) {
             getWindow().setFlags(prefs.getBoolean(key, false) ?
@@ -584,137 +596,19 @@ public class EmulatorActivity extends Activity implements
         }
     }
 
-    public void onGameKeyChanged() {
-        int states = keyboard.getKeyStates();
-
-        if (sensor != null) {
-            int keys = sensor.getKeyStates();
-            if ((keys & SensorKeypad.LEFT) != 0)
-                states |= sensorMappings[0];
-            if ((keys & SensorKeypad.RIGHT) != 0)
-                states |= sensorMappings[1];
-            if ((keys & SensorKeypad.UP) != 0)
-                states |= sensorMappings[2];
-            if ((keys & SensorKeypad.DOWN) != 0)
-                states |= sensorMappings[3];
-        }
-        if (flipScreen)
-            states = flipGameKeys(states);
-
-        if (vkeypad != null)
-            states |= vkeypad.getKeyStates();
-
-        // resolve conflict keys
-        if ((states & GAMEPAD_LEFT_RIGHT) == GAMEPAD_LEFT_RIGHT)
-            states &= ~GAMEPAD_LEFT_RIGHT;
-        if ((states & GAMEPAD_UP_DOWN) == GAMEPAD_UP_DOWN)
-            states &= ~GAMEPAD_UP_DOWN;
-
-        emulator.setKeyStates(states);
-    }
-
-    public boolean onTrackball(MotionEvent event) {
-        float dx = event.getX();
-        float dy = event.getY();
-        if (flipScreen) {
-            dx = -dx;
-            dy = -dy;
-        }
-
-        int duration1 = (int) (dx * trackballSensitivity);
-        int duration2 = (int) (dy * trackballSensitivity);
-        int key1 = 0;
-        int key2 = 0;
-
-        if (duration1 < 0)
-            key1 = ControlKeys.GAMEPAD_LEFT;
-        else if (duration1 > 0)
-            key1 = ControlKeys.GAMEPAD_RIGHT;
-
-        if (duration2 < 0)
-            key2 = ControlKeys.GAMEPAD_UP;
-        else if (duration2 > 0)
-            key2 = ControlKeys.GAMEPAD_DOWN;
-
-        if (key1 == 0 && key2 == 0)
-            return false;
-
-        emulator.processTrackball(key1, Math.abs(duration1),
-                key2, Math.abs(duration2));
-        return true;
-    }
-
-    public void surfaceCreated(SurfaceHolder holder) {
-        emulator.setSurface(holder);
-    }
-
-    public void surfaceDestroyed(SurfaceHolder holder) {
-        if (vkeypad != null)
-            vkeypad.destroy();
-
-        emulator.setSurface(null);
-    }
-
-    public void surfaceChanged(SurfaceHolder holder,
-                               int format, int width, int height) {
-
-        surfaceWidth = width;
-        surfaceHeight = height;
-
-        if (vkeypad != null)
-            vkeypad.resize(width, height);
-
-        final int w = emulator.getVideoWidth();
-        final int h = emulator.getVideoHeight();
-        surfaceRegion.left = (width - w) / 2;
-        surfaceRegion.top = (height - h) / 2;
-        surfaceRegion.right = surfaceRegion.left + w;
-        surfaceRegion.bottom = surfaceRegion.top + h;
-
-        emulator.setSurfaceRegion(
-                surfaceRegion.left, surfaceRegion.top, w, h);
-    }
-
-    public void onFrameDrawn(Canvas canvas) {
-        if (vkeypad != null)
-            vkeypad.draw(canvas);
-    }
-
-    public boolean onTouch(View v, MotionEvent event) {
-        if (vkeypad != null)
-            return vkeypad.onTouch(event, flipScreen);
-
-        if (lightGunEnabled &&
-                event.getAction() == MotionEvent.ACTION_DOWN) {
-            int x = (int) event.getX() *
-                    surfaceWidth / emulatorView.getWidth();
-            int y = (int) event.getY() *
-                    surfaceHeight / emulatorView.getHeight();
-            if (flipScreen) {
-                x = surfaceWidth - x;
-                y = surfaceHeight - y;
-            }
-            if (surfaceRegion.contains(x, y)) {
-                x -= surfaceRegion.left;
-                y -= surfaceRegion.top;
-                emulator.fireLightGun(x, y);
-                return true;
-            }
-        }
-        return false;
-    }
-
     private void pauseEmulator() {
-        emulator.pause();
+        mEmulator.pause();
     }
 
     private void resumeEmulator() {
-        if (hasWindowFocus())
-            emulator.resume();
+        if (hasWindowFocus()) {
+            mEmulator.resume();
+        }
     }
 
     private boolean checkBluetoothEnabled(int request) {
-        if (Wrapper.isBluetoothEnabled())
+        BluetoothAdapter adapter = BluetoothAdapter.getDefaultAdapter();
+        if (adapter != null && adapter.isEnabled())
             return true;
 
         Intent intent = new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE);
@@ -723,157 +617,83 @@ public class EmulatorActivity extends Activity implements
     }
 
     private void setFlipScreen(SharedPreferences prefs, Configuration config) {
-        if (config.orientation == Configuration.ORIENTATION_LANDSCAPE)
+        boolean flipScreen = false;
+
+        if (config.orientation == Configuration.ORIENTATION_LANDSCAPE) {
             flipScreen = prefs.getBoolean("flipScreen", false);
-        else
-            flipScreen = false;
+        }
 
-        emulator.setOption("flipScreen", flipScreen);
-    }
-
-    private int flipGameKeys(int keys) {
-        int newKeys = (keys & ~GAMEPAD_DIRECTION);
-        if ((keys & ControlKeys.GAMEPAD_LEFT) != 0)
-            newKeys |= ControlKeys.GAMEPAD_RIGHT;
-        if ((keys & ControlKeys.GAMEPAD_RIGHT) != 0)
-            newKeys |= ControlKeys.GAMEPAD_LEFT;
-        if ((keys & ControlKeys.GAMEPAD_UP) != 0)
-            newKeys |= ControlKeys.GAMEPAD_DOWN;
-        if ((keys & ControlKeys.GAMEPAD_DOWN) != 0)
-            newKeys |= ControlKeys.GAMEPAD_UP;
-
-        return newKeys;
+        mEmulator.setScreenFlipped(flipScreen);
+        mEmulator.setOption("flipScreen", flipScreen);
     }
 
     private static int getScalingMode(String mode) {
         if (mode.equals("original"))
-            return EmulatorView.SCALING_ORIGINAL;
+            return DefaultVideoModule.SCALING_ORIGINAL;
         if (mode.equals("2x"))
-            return EmulatorView.SCALING_2X;
+            return DefaultVideoModule.SCALING_2X;
         if (mode.equals("proportional"))
-            return EmulatorView.SCALING_PROPORTIONAL;
-        return EmulatorView.SCALING_STRETCH;
-    }
-
-    private static int getScreenOrientation(String orientation) {
-        if (orientation.equals("landscape"))
-            return ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE;
-        if (orientation.equals("portrait"))
-            return ActivityInfo.SCREEN_ORIENTATION_PORTRAIT;
-        return ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED;
-    }
-
-    private static final int[] SENSOR_MAP_DPAD = {
-            ControlKeys.GAMEPAD_LEFT,
-            ControlKeys.GAMEPAD_RIGHT,
-            ControlKeys.GAMEPAD_UP,
-            ControlKeys.GAMEPAD_DOWN,
-    };
-
-    private static final int[] SENSOR_MAP_TRIGGERS = {
-            ControlKeys.GAMEPAD_TL,
-            ControlKeys.GAMEPAD_TR,
-            0,
-            0
-    };
-
-    private static int[] getSensorMappings(String as) {
-        if ("dpad".equals(as))
-            return SENSOR_MAP_DPAD;
-        if ("triggers".equals(as))
-            return SENSOR_MAP_TRIGGERS;
-        return null;
-    }
-
-    private String getEmulatorEngine(SharedPreferences prefs) {
-        return "snes";
-    }
-
-    private void loadKeyBindings(SharedPreferences prefs) {
-        final int[] gameKeys = EmulatorSettings.gameKeys;
-        final int[] defaultKeys = DefaultPreferences.getKeyMappings(this);
-        keyboard.clearKeyMap();
-
-        String[] gameKeysPref = EmulatorSettings.gameKeysPref;
-        for (int i = 0; i < gameKeysPref.length; i++) {
-            keyboard.mapKey(gameKeys[i],
-                    prefs.getInt(gameKeysPref[i], defaultKeys[i]));
-        }
-        gameKeysPref = EmulatorSettings.gameKeysPref2;
-        for (int i = 0; i < gameKeysPref.length; i++) {
-            keyboard.mapKey(gameKeys[i] << 16,
-                    prefs.getInt(gameKeysPref[i], 0));
-        }
-        keyboard.mapKey(ControlKeys.GAMEPAD_SUPERSCOPE_TURBO,
-                prefs.getInt("gamepad_superscope_turbo", 0));
-        keyboard.mapKey(ControlKeys.GAMEPAD_SUPERSCOPE_PAUSE,
-                prefs.getInt("gamepad_superscope_pause", 0));
-        keyboard.mapKey(ControlKeys.GAMEPAD_SUPERSCOPE_CURSOR,
-                prefs.getInt("gamepad_superscope_cursor", 0));
+            return DefaultVideoModule.SCALING_PROPORTIONAL;
+        return DefaultVideoModule.SCALING_STRETCH;
     }
 
     private Dialog createQuitGameDialog() {
-        DialogInterface.OnClickListener l =
-                new DialogInterface.OnClickListener() {
-                    public void onClick(DialogInterface dialog, int which) {
-                        switch (which) {
-                            case 1:
-                                quickSave();
-                                // fall through
-                            case 2:
-                                finish();
-                                break;
-                        }
-                    }
-                };
+        DialogInterface.OnClickListener l = new DialogInterface.OnClickListener() {
+            public void onClick(DialogInterface dialog, int which) {
+                switch (which) {
+                    case 1:
+                        quickSave();
+                        // fall through
+                    case 2:
+                        finish();
+                        break;
+                }
+            }
+        };
 
-        return new AlertDialog.Builder(this).
-                setTitle(R.string.quit_game_title).
-                setItems(R.array.exit_game_options, l).
-                create();
+        return new AlertDialog.Builder(this)
+                .setTitle(R.string.quit_game_title)
+                .setItems(R.array.exit_game_options, l)
+                .create();
     }
 
     private Dialog createReplaceGameDialog() {
-        DialogInterface.OnClickListener l =
-                new DialogInterface.OnClickListener() {
-                    public void onClick(DialogInterface dialog, int which) {
-                        if (which == DialogInterface.BUTTON_POSITIVE) {
-                            setIntent(newIntent);
-                            loadROM();
-                        }
-                        newIntent = null;
-                    }
-                };
+        DialogInterface.OnClickListener l = new DialogInterface.OnClickListener() {
+            public void onClick(DialogInterface dialog, int which) {
+                if (which == DialogInterface.BUTTON_POSITIVE) {
+                    setIntent(newIntent);
+                    loadROM();
+                }
+                newIntent = null;
+            }
+        };
 
-        return new AlertDialog.Builder(this).
-                setCancelable(false).
-                setTitle(R.string.replace_game_title).
-                setMessage(R.string.replace_game_message).
-                setPositiveButton(android.R.string.yes, l).
-                setNegativeButton(android.R.string.no, l).
-                create();
+        return new AlertDialog.Builder(this)
+                .setCancelable(false)
+                .setTitle(R.string.replace_game_title)
+                .setMessage(R.string.replace_game_message)
+                .setPositiveButton(android.R.string.yes, l)
+                .setNegativeButton(android.R.string.no, l)
+                .create();
     }
 
+    @SuppressLint("InflateParams")
     private Dialog createWifiConnectDialog() {
-        DialogInterface.OnClickListener l =
-                new DialogInterface.OnClickListener() {
-                    public void onClick(DialogInterface dialog, int which) {
-                        final Dialog d = (Dialog) dialog;
-                        String ip = ((TextView) d.findViewById(
-                                R.id.ip_address)).getText().toString();
-                        String port = ((TextView) d.findViewById(
-                                R.id.port)).getText().toString();
-                        onWifiConnect(ip, port);
-                    }
-                };
+        DialogInterface.OnClickListener l = new DialogInterface.OnClickListener() {
+            public void onClick(DialogInterface dialog, int which) {
+                final Dialog d = (Dialog) dialog;
+                String ip = ((TextView) d.findViewById(R.id.ip_address)).getText().toString();
+                String port = ((TextView) d.findViewById(R.id.port)).getText().toString();
+                onWifiConnect(ip, port);
+            }
+        };
 
-        return new AlertDialog.Builder(this).
-                setTitle(R.string.wifi_client).
-                setView(getLayoutInflater().
-                        inflate(R.layout.wifi_connect, null)).
-                setPositiveButton(android.R.string.ok, l).
-                setNegativeButton(android.R.string.cancel, null).
-                create();
+        return new AlertDialog.Builder(this)
+                .setTitle(R.string.wifi_client)
+                .setView(getLayoutInflater().inflate(R.layout.wifi_connect, null))
+                .setPositiveButton(android.R.string.ok, l)
+                .setNegativeButton(android.R.string.cancel, null)
+                .create();
     }
 
     private String getROMFilePath() {
@@ -896,30 +716,26 @@ public class EmulatorActivity extends Activity implements
         String path = getROMFilePath();
 
         if (!isROMSupported(path)) {
-            Toast.makeText(this, R.string.rom_not_supported,
-                    Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, R.string.rom_not_supported, Toast.LENGTH_SHORT).show();
             finish();
             return false;
         }
-        if (!emulator.loadROM(path)) {
-            Toast.makeText(this, R.string.load_rom_failed,
-                    Toast.LENGTH_SHORT).show();
+        if (!mEmulator.loadROM(path)) {
+            Toast.makeText(this, R.string.load_rom_failed, Toast.LENGTH_SHORT).show();
             finish();
             return false;
         }
         // reset fast-forward on ROM load
         inFastForward = false;
 
-        emulatorView.setActualSize(
-                emulator.getVideoWidth(), emulator.getVideoHeight());
+        mVideoModule.setActualSize(mEmulator.getVideoWidth(), mEmulator.getVideoHeight());
 
         if (sharedPrefs.getBoolean("quickLoadOnStart", true))
             quickLoad();
         return true;
     }
 
-    private Dialog createNetWaitDialog(
-            CharSequence title, CharSequence message) {
+    private Dialog createNetWaitDialog(CharSequence title, CharSequence message) {
         if (waitDialog != null) {
             waitDialog.dismiss();
             waitDialog = null;
@@ -930,82 +746,12 @@ public class EmulatorActivity extends Activity implements
         return waitDialog;
     }
 
-    private Handler netPlayHandler = new Handler() {
-        @Override
-        public void handleMessage(Message msg) {
-            if (netPlayService == null)
-                return;
-
-            switch (msg.what) {
-                case NetPlayService.MESSAGE_CONNECTED:
-                    applyNetplaySettings();
-                    if (netPlayService.isServer())
-                        onNetPlaySync();
-
-                    emulator.setFrameUpdateListener(EmulatorActivity.this);
-                    netPlayService.sendMessageReply();
-
-                    if (waitDialog != null) {
-                        waitDialog.dismiss();
-                        waitDialog = null;
-                    }
-                    break;
-
-                case NetPlayService.MESSAGE_DISCONNECTED:
-                    onDisconnect();
-
-                    if (waitDialog != null) {
-                        waitDialog.dismiss();
-                        waitDialog = null;
-                    }
-                    int error = R.string.connection_closed;
-                    switch (msg.arg1) {
-                        case NetPlayService.E_CONNECT_FAILED:
-                            error = R.string.connect_failed;
-                            break;
-                        case NetPlayService.E_PROTOCOL_INCOMPATIBLE:
-                            error = R.string.protocol_incompatible;
-                            break;
-                    }
-                    Toast.makeText(EmulatorActivity.this, error,
-                            Toast.LENGTH_LONG).show();
-                    break;
-
-                case NetPlayService.MESSAGE_POWER_ROM:
-                    emulator.power();
-                    netPlayService.sendMessageReply();
-                    break;
-
-                case NetPlayService.MESSAGE_RESET_ROM:
-                    emulator.reset();
-                    netPlayService.sendMessageReply();
-                    break;
-
-                case NetPlayService.MESSAGE_SAVED_STATE:
-                    File file = getTempStateFile();
-                    try {
-                        writeFile(file, (byte[]) msg.obj);
-                        emulator.loadState(file.getAbsolutePath());
-                    } catch (IOException e) {
-                    } finally {
-                        file.delete();
-                    }
-                    netPlayService.sendMessageReply();
-                    break;
-
-                case MESSAGE_SYNC_CLIENT:
-                    if (hasWindowFocus())
-                        onNetPlaySync();
-                    startAutoSyncClient();
-                    break;
-            }
-        }
-    };
-
     private void ensureDiscoverable() {
-        if (!Wrapper.isBluetoothDiscoverable()) {
-            Intent intent = new Intent(
-                    BluetoothAdapter.ACTION_REQUEST_DISCOVERABLE);
+        BluetoothAdapter adapter = BluetoothAdapter.getDefaultAdapter();
+
+        if (adapter != null && adapter.getScanMode() !=
+                BluetoothAdapter.SCAN_MODE_CONNECTABLE_DISCOVERABLE) {
+            Intent intent = new Intent(BluetoothAdapter.ACTION_REQUEST_DISCOVERABLE);
             startActivity(intent);
         }
     }
@@ -1020,29 +766,30 @@ public class EmulatorActivity extends Activity implements
             return;
         }
 
-        InetAddress addr = null;
+        InetAddress address = null;
         try {
-            addr = InetAddress.getByAddress(new byte[]{
+            address = InetAddress.getByAddress(new byte[]{
                     (byte) ip,
                     (byte) (ip >>> 8),
                     (byte) (ip >>> 16),
                     (byte) (ip >>> 24),
             });
         } catch (UnknownHostException e) {
+            Log.e(LOG_TAG, e.getMessage());
         }
 
         int port = NETPLAY_TCP_PORT;
         try {
             final NetPlayService np = new NetPlayService(netPlayHandler);
-            port = np.tcpListen(addr, port);
+            port = np.tcpListen(address, port);
             netPlayService = np;
         } catch (IOException e) {
             return;
         }
 
+        assert address != null;
         createNetWaitDialog(getText(R.string.wifi_server),
-                getString(R.string.wifi_server_listening,
-                        addr.getHostAddress(), port)).show();
+                getString(R.string.wifi_server_listening, address.getHostAddress(), port)).show();
     }
 
     private void onWifiConnect(String ip, String portStr) {
@@ -1051,10 +798,10 @@ public class EmulatorActivity extends Activity implements
             if (InetAddressUtils.isIPv4Address(ip))
                 addr = InetAddress.getByName(ip);
         } catch (UnknownHostException e) {
+            Log.e(LOG_TAG, e.getMessage());
         }
         if (addr == null) {
-            Toast.makeText(this, R.string.invalid_ip_address,
-                    Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, R.string.invalid_ip_address, Toast.LENGTH_SHORT).show();
             return;
         }
 
@@ -1062,17 +809,16 @@ public class EmulatorActivity extends Activity implements
         try {
             port = Integer.parseInt(portStr);
         } catch (NumberFormatException e) {
+            Log.e(LOG_TAG, e.getMessage());
         }
         if (port <= 0) {
-            Toast.makeText(this, R.string.invalid_port,
-                    Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, R.string.invalid_port, Toast.LENGTH_SHORT).show();
             return;
         }
         netPlayService = new NetPlayService(netPlayHandler);
         netPlayService.tcpConnect(addr, port);
 
-        createNetWaitDialog(getText(R.string.wifi_client),
-                getString(R.string.client_connecting)).show();
+        createNetWaitDialog(getText(R.string.wifi_client), getString(R.string.client_connecting)).show();
     }
 
     private void onBluetoothServer() {
@@ -1081,17 +827,18 @@ public class EmulatorActivity extends Activity implements
             np.bluetoothListen();
             netPlayService = np;
         } catch (IOException e) {
+            Log.e(LOG_TAG, e.getMessage());
             return;
         }
 
         createNetWaitDialog(getText(R.string.bluetooth_server),
                 getString(R.string.bluetooth_server_listening));
-        waitDialog.setOnClickListener(
-                new DialogInterface.OnClickListener() {
-                    public void onClick(DialogInterface dialog, int button) {
-                        ensureDiscoverable();
-                    }
-                });
+
+        waitDialog.setOnClickListener(new DialogInterface.OnClickListener() {
+            public void onClick(DialogInterface dialog, int button) {
+                ensureDiscoverable();
+            }
+        });
         waitDialog.show();
     }
 
@@ -1115,11 +862,15 @@ public class EmulatorActivity extends Activity implements
     private void onNetPlaySync() {
         File file = getTempStateFile();
         try {
-            emulator.saveState(file.getAbsolutePath());
+            mEmulator.saveState(file.getAbsolutePath());
             netPlayService.sendSavedState(readFile(file));
         } catch (IOException e) {
+            Log.e(LOG_TAG, e.getMessage());
         }
-        file.delete();
+
+        if (!file.delete()) {
+            Log.w(LOG_TAG, "Failed to delete file");
+        }
     }
 
     private void onDisconnect() {
@@ -1130,7 +881,7 @@ public class EmulatorActivity extends Activity implements
         onSharedPreferenceChanged(sharedPrefs, "enableGamepad2");
         stopAutoSyncClient();
 
-        emulator.setFrameUpdateListener(null);
+        mEmulator.setFrameUpdateListener(null);
         netPlayService.disconnect();
         netPlayService = null;
     }
@@ -1149,8 +900,8 @@ public class EmulatorActivity extends Activity implements
     }
 
     private void applyNetplaySettings() {
-        emulator.setOption("enableGamepad2", true);
-        emulator.setOption("enableCheats", false);
+        mEmulator.setOption("enableGamepad2", true);
+        mEmulator.setOption("enableCheats", false);
         onSharedPreferenceChanged(sharedPrefs, "maxFramesAhead");
         onSharedPreferenceChanged(sharedPrefs, "autoSyncClient");
 
@@ -1161,8 +912,7 @@ public class EmulatorActivity extends Activity implements
     }
 
     private void startAutoSyncClient() {
-        netPlayHandler.sendMessageDelayed(
-                netPlayHandler.obtainMessage(MESSAGE_SYNC_CLIENT),
+        netPlayHandler.sendMessageDelayed(netPlayHandler.obtainMessage(MESSAGE_SYNC_CLIENT),
                 autoSyncClientInterval);
     }
 
@@ -1172,7 +922,7 @@ public class EmulatorActivity extends Activity implements
 
     private void setGameSpeed(float speed) {
         pauseEmulator();
-        emulator.setOption("gameSpeed", Float.toString(speed));
+        mEmulator.setOption("gameSpeed", Float.toString(speed));
         resumeEmulator();
     }
 
@@ -1185,7 +935,7 @@ public class EmulatorActivity extends Activity implements
     }
 
     private void onScreenshot() {
-        File dir = new File("/sdcard/screenshot");
+        File dir = new File(SCREENSHOTS_FOLDER);
         if (!dir.exists() && !dir.mkdir()) {
             Log.w(LOG_TAG, "Could not create directory for screenshots");
             return;
@@ -1203,8 +953,7 @@ public class EmulatorActivity extends Activity implements
                 bitmap.compress(Bitmap.CompressFormat.PNG, 100, out);
                 bitmap.recycle();
 
-                Toast.makeText(this, R.string.screenshot_saved,
-                        Toast.LENGTH_SHORT).show();
+                Toast.makeText(this, R.string.screenshot_saved, Toast.LENGTH_SHORT).show();
 
                 if (mediaScanner == null)
                     mediaScanner = new MediaScanner(this);
@@ -1215,6 +964,7 @@ public class EmulatorActivity extends Activity implements
                     out.close();
             }
         } catch (IOException e) {
+            Log.e(LOG_TAG, e.getMessage());
         }
 
         resumeEmulator();
@@ -1224,8 +974,8 @@ public class EmulatorActivity extends Activity implements
         return new File(getCacheDir(), "saved_state");
     }
 
-    private static byte[] readFile(File file)
-            throws IOException {
+    @SuppressWarnings("TryFinallyCanBeTryWithResources")
+    private static byte[] readFile(File file) throws IOException {
         FileInputStream in = new FileInputStream(file);
         byte[] buffer = new byte[(int) file.length()];
         try {
@@ -1237,8 +987,8 @@ public class EmulatorActivity extends Activity implements
         return buffer;
     }
 
-    private static void writeFile(File file, byte[] buffer)
-            throws IOException {
+    @SuppressWarnings("TryFinallyCanBeTryWithResources")
+    private static void writeFile(File file, byte[] buffer) throws IOException {
         FileOutputStream out = new FileOutputStream(file);
         try {
             out.write(buffer);
@@ -1253,8 +1003,7 @@ public class EmulatorActivity extends Activity implements
         ZipOutputStream out = null;
         try {
             try {
-                out = new ZipOutputStream(new BufferedOutputStream(
-                        new FileOutputStream(fileName)));
+                out = new ZipOutputStream(new BufferedOutputStream(new FileOutputStream(fileName)));
                 out.putNextEntry(new ZipEntry("screenshot.png"));
 
                 Bitmap bitmap = getScreenshot();
@@ -1265,9 +1014,10 @@ public class EmulatorActivity extends Activity implements
                     out.close();
             }
         } catch (Exception e) {
+            Log.e(LOG_TAG, e.getMessage());
         }
 
-        emulator.saveState(fileName);
+        mEmulator.saveState(fileName);
         resumeEmulator();
     }
 
@@ -1280,19 +1030,20 @@ public class EmulatorActivity extends Activity implements
         try {
             if (netPlayService != null)
                 netPlayService.sendSavedState(readFile(file));
-            emulator.loadState(fileName);
+            mEmulator.loadState(fileName);
 
         } catch (IOException e) {
+            Log.e(LOG_TAG, e.getMessage());
         }
         resumeEmulator();
     }
 
     private Bitmap getScreenshot() {
-        final int w = emulator.getVideoWidth();
-        final int h = emulator.getVideoHeight();
+        final int w = mEmulator.getVideoWidth();
+        final int h = mEmulator.getVideoHeight();
 
         ByteBuffer buffer = ByteBuffer.allocateDirect(w * h * 2);
-        emulator.getScreenshot(buffer);
+        mEmulator.getScreenshot(buffer);
 
         Bitmap bitmap = Bitmap.createBitmap(w, h, Bitmap.Config.RGB_565);
         bitmap.copyPixelsFromBuffer(buffer);
@@ -1311,12 +1062,11 @@ public class EmulatorActivity extends Activity implements
         loadState(getQuickSlotFileName());
     }
 
-    private class NetWaitDialog extends ProgressDialog implements
-            DialogInterface.OnCancelListener {
+    private class NetWaitDialog extends ProgressDialog implements DialogInterface.OnCancelListener {
 
         private OnClickListener onClickListener;
 
-        public NetWaitDialog() {
+        NetWaitDialog() {
             super(EmulatorActivity.this);
 
             setIndeterminate(true);
@@ -1324,14 +1074,13 @@ public class EmulatorActivity extends Activity implements
             setOnCancelListener(this);
         }
 
-        public void setOnClickListener(OnClickListener l) {
+        void setOnClickListener(OnClickListener l) {
             onClickListener = l;
         }
 
         @Override
-        public boolean dispatchTouchEvent(MotionEvent event) {
-            if (onClickListener != null &&
-                    event.getAction() == MotionEvent.ACTION_UP) {
+        public boolean dispatchTouchEvent(@NonNull MotionEvent event) {
+            if (onClickListener != null && event.getAction() == MotionEvent.ACTION_UP) {
                 onClickListener.onClick(this, BUTTON_POSITIVE);
                 return true;
             }
@@ -1344,35 +1093,89 @@ public class EmulatorActivity extends Activity implements
             netPlayService = null;
         }
     }
-}
 
-class InetAddressUtils {
+    private static class NetPlayHandler extends Handler {
 
-    private InetAddressUtils() {
-    }
+        private final WeakReference<EmulatorActivity> mTarget;
 
-    private static final Pattern IPV4_PATTERN =
-            Pattern.compile("^(25[0-5]|2[0-4]\\d|[0-1]?\\d?\\d)(\\.(25[0-5]|2[0-4]\\d|[0-1]?\\d?\\d)){3}$");
+        NetPlayHandler(EmulatorActivity target) {
+            mTarget = new WeakReference<>(target);
+        }
 
-    private static final Pattern IPV6_STD_PATTERN =
-            Pattern.compile("^(?:[0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}$");
+        @Override
+        public void handleMessage(Message msg) {
+            EmulatorActivity activity = mTarget.get();
 
-    private static final Pattern IPV6_HEX_COMPRESSED_PATTERN =
-            Pattern.compile("^((?:[0-9A-Fa-f]{1,4}(?::[0-9A-Fa-f]{1,4})*)?)::((?:[0-9A-Fa-f]{1,4}(?::[0-9A-Fa-f]{1,4})*)?)$");
+            if (activity.netPlayService == null)
+                return;
 
-    public static boolean isIPv4Address(final String input) {
-        return IPV4_PATTERN.matcher(input).matches();
-    }
+            switch (msg.what) {
+                case NetPlayService.MESSAGE_CONNECTED:
+                    activity.applyNetplaySettings();
+                    if (activity.netPlayService.isServer())
+                        activity.onNetPlaySync();
 
-    public static boolean isIPv6StdAddress(final String input) {
-        return IPV6_STD_PATTERN.matcher(input).matches();
-    }
+                    activity.mEmulator.setFrameUpdateListener(activity);
+                    activity.netPlayService.sendMessageReply();
 
-    public static boolean isIPv6HexCompressedAddress(final String input) {
-        return IPV6_HEX_COMPRESSED_PATTERN.matcher(input).matches();
-    }
+                    if (activity.waitDialog != null) {
+                        activity.waitDialog.dismiss();
+                        activity.waitDialog = null;
+                    }
+                    break;
 
-    public static boolean isIPv6Address(final String input) {
-        return isIPv6StdAddress(input) || isIPv6HexCompressedAddress(input);
+                case NetPlayService.MESSAGE_DISCONNECTED:
+                    activity.onDisconnect();
+
+                    if (activity.waitDialog != null) {
+                        activity.waitDialog.dismiss();
+                        activity.waitDialog = null;
+                    }
+                    int error = R.string.connection_closed;
+                    switch (msg.arg1) {
+                        case NetPlayService.E_CONNECT_FAILED:
+                            error = R.string.connect_failed;
+                            break;
+                        case NetPlayService.E_PROTOCOL_INCOMPATIBLE:
+                            error = R.string.protocol_incompatible;
+                            break;
+                    }
+                    Toast.makeText(activity, error, Toast.LENGTH_LONG).show();
+                    break;
+
+                case NetPlayService.MESSAGE_POWER_ROM:
+                    activity.mEmulator.power();
+                    activity.netPlayService.sendMessageReply();
+                    break;
+
+                case NetPlayService.MESSAGE_RESET_ROM:
+                    activity.mEmulator.reset();
+                    activity.netPlayService.sendMessageReply();
+                    break;
+
+                case NetPlayService.MESSAGE_SAVED_STATE:
+                    File file = activity.getTempStateFile();
+                    try {
+                        writeFile(file, (byte[]) msg.obj);
+                        activity.mEmulator.loadState(file.getAbsolutePath());
+                    } catch (IOException e) {
+                        Log.d(LOG_TAG, e.getMessage());
+                    } finally {
+                        boolean result = file.delete();
+
+                        if (!result) {
+                            Log.w(LOG_TAG, "Failed to delete file");
+                        }
+                    }
+                    activity.netPlayService.sendMessageReply();
+                    break;
+
+                case MESSAGE_SYNC_CLIENT:
+                    if (activity.hasWindowFocus())
+                        activity.onNetPlaySync();
+                    activity.startAutoSyncClient();
+                    break;
+            }
+        }
     }
 }

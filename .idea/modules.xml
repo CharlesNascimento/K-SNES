@@ -5,11 +5,11 @@
       <module fileurl="file://$PROJECT_DIR$/K-SNES.iml" filepath="$PROJECT_DIR$/K-SNES.iml" />
       <module fileurl="file://$PROJECT_DIR$/abstractemulator/abstractemulator.iml" filepath="$PROJECT_DIR$/abstractemulator/abstractemulator.iml" />
       <module fileurl="file://$PROJECT_DIR$/app/app.iml" filepath="$PROJECT_DIR$/app/app.iml" />
-      <module fileurl="file://$PROJECT_DIR$/emulator/emulator.iml" filepath="$PROJECT_DIR$/emulator/emulator.iml" />
       <module fileurl="file://$PROJECT_DIR$/input/input.iml" filepath="$PROJECT_DIR$/input/input.iml" />
       <module fileurl="file://$PROJECT_DIR$/multiplayer/multiplayer.iml" filepath="$PROJECT_DIR$/multiplayer/multiplayer.iml" />
       <module fileurl="file://$PROJECT_DIR$/preferences/preferences.iml" filepath="$PROJECT_DIR$/preferences/preferences.iml" />
       <module fileurl="file://$PROJECT_DIR$/roms/roms.iml" filepath="$PROJECT_DIR$/roms/roms.iml" />
+      <module fileurl="file://$PROJECT_DIR$/snes9x/snes9x.iml" filepath="$PROJECT_DIR$/snes9x/snes9x.iml" />
     </modules>
   </component>
 </project>

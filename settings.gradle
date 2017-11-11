@@ -1,1 +1,1 @@
-include ':app', ':multiplayer', ':input', ':roms', ':preferences', ':emulator', ':abstractemulator'
+include ':app', ':multiplayer', ':input', ':roms', ':preferences', ':snes9x', ':abstractemulator'

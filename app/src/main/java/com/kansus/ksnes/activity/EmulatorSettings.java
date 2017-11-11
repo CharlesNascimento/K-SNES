@@ -2,6 +2,7 @@ package com.kansus.ksnes.activity;
 
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Bundle;
 import android.preference.Preference;
@@ -11,86 +12,29 @@ import android.preference.PreferenceManager;
 import android.preference.PreferenceScreen;
 import android.widget.Toast;
 
-import java.util.Arrays;
+import com.kansus.ksnes.R;
+import com.kansus.ksnes.input.DefaultPreferences;
+import com.kansus.ksnes.preference.KeyPreference;
+
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Map;
 import java.util.TreeMap;
 
-import com.kansus.ksnes.input.ControlKeys;
-import com.kansus.ksnes.preference.DefaultPreferences;
-import com.kansus.ksnes.preference.KeyPreference;
-import com.kansus.ksnes.R;
-import com.kansus.ksnes.wrapper.Wrapper;
+import static com.kansus.ksnes.input.DefaultPreferences.gameKeys;
+import static com.kansus.ksnes.input.DefaultPreferences.gameKeysPref;
+import static com.kansus.ksnes.input.DefaultPreferences.gameKeysPref2;
 
+// FIXME Move to PreferenceFragment
 public class EmulatorSettings extends PreferenceActivity implements Preference.OnPreferenceChangeListener {
 
-    private static final String SEARCH_ROM_URI =
-            "http://www.romfind.com/snes-roms.html?sid=YONG";
-    private static final Uri ABOUT_URI = Uri.parse(
-            "file:///android_asset/about.html");
+    private static final String SEARCH_ROM_URI = "http://www.romfind.com/snes-roms.html?sid=YONG";
+    private static final Uri ABOUT_URI = Uri.parse("file:///android_asset/about.html");
     private static final String MARKET_URI = "market://details?id=";
-    private static final String GAME_GRIPPER_URI =
-            "https://sites.google.com/site/gamegripper";
+    private static final String GAME_GRIPPER_URI = "https://sites.google.com/site/gamegripper";
 
     private static final int REQUEST_LOAD_KEY_PROFILE = 1;
     private static final int REQUEST_SAVE_KEY_PROFILE = 2;
-
-    public static final int[] gameKeys = {
-            ControlKeys.GAMEPAD_UP,
-            ControlKeys.GAMEPAD_DOWN,
-            ControlKeys.GAMEPAD_LEFT,
-            ControlKeys.GAMEPAD_RIGHT,
-            ControlKeys.GAMEPAD_UP_LEFT,
-            ControlKeys.GAMEPAD_UP_RIGHT,
-            ControlKeys.GAMEPAD_DOWN_LEFT,
-            ControlKeys.GAMEPAD_DOWN_RIGHT,
-            ControlKeys.GAMEPAD_SELECT,
-            ControlKeys.GAMEPAD_START,
-            ControlKeys.GAMEPAD_A,
-            ControlKeys.GAMEPAD_B,
-            ControlKeys.GAMEPAD_X,
-            ControlKeys.GAMEPAD_Y,
-            ControlKeys.GAMEPAD_TL,
-            ControlKeys.GAMEPAD_TR,
-    };
-
-    public static final String[] gameKeysPref = {
-            "gamepad_up",
-            "gamepad_down",
-            "gamepad_left",
-            "gamepad_right",
-            "gamepad_up_left",
-            "gamepad_up_right",
-            "gamepad_down_left",
-            "gamepad_down_right",
-            "gamepad_select",
-            "gamepad_start",
-            "gamepad_A",
-            "gamepad_B",
-            "gamepad_X",
-            "gamepad_Y",
-            "gamepad_TL",
-            "gamepad_TR",
-    };
-
-    public static final String[] gameKeysPref2 = {
-            "gamepad2_up",
-            "gamepad2_down",
-            "gamepad2_left",
-            "gamepad2_right",
-            "gamepad2_up_left",
-            "gamepad2_up_right",
-            "gamepad2_down_left",
-            "gamepad2_down_right",
-            "gamepad2_select",
-            "gamepad2_start",
-            "gamepad2_A",
-            "gamepad2_B",
-            "gamepad2_X",
-            "gamepad2_Y",
-            "gamepad2_TL",
-            "gamepad2_TR",
-    };
 
     private static final int[] gameKeysName = {
             R.string.gamepad_up,
@@ -126,7 +70,7 @@ public class EmulatorSettings extends PreferenceActivity implements Preference.O
 
     // FIXME
     private static ArrayList<String> getAllKeyPrefs() {
-        ArrayList<String> result = new ArrayList<String>();
+        ArrayList<String> result = new ArrayList<>();
         result.addAll(Arrays.asList(gameKeysPref));
         result.addAll(Arrays.asList(gameKeysPref2));
         result.add("gamepad_superscope_turbo");
@@ -138,11 +82,11 @@ public class EmulatorSettings extends PreferenceActivity implements Preference.O
     private SharedPreferences settings;
 
     private Map<String, Integer> getKeyMappings() {
-        TreeMap mappings = new TreeMap<String, Integer>();
+        TreeMap<String, Integer> mappings = new TreeMap<>();
 
         for (String key : getAllKeyPrefs()) {
             KeyPreference pref = (KeyPreference) findPreference(key);
-            mappings.put(key, new Integer(pref.getKeyValue()));
+            mappings.put(key, pref.getKeyValue());
         }
         return mappings;
     }
@@ -154,11 +98,11 @@ public class EmulatorSettings extends PreferenceActivity implements Preference.O
             Integer value = mappings.get(key);
             if (value != null) {
                 KeyPreference pref = (KeyPreference) findPreference(key);
-                pref.setKey(value.intValue());
-                editor.putInt(key, value.intValue());
+                pref.setKey(value);
+                editor.putInt(key, value);
             }
         }
-        editor.commit();
+        editor.apply();
     }
 
     @Override
@@ -181,6 +125,7 @@ public class EmulatorSettings extends PreferenceActivity implements Preference.O
             pref.setDefaultValue(defaultKeys[i]);
             group.addPreference(pref);
         }
+
         //  gamepad 2
         group = (PreferenceGroup) findPreference("gamepad2");
         for (int i = 0; i < gameKeysPref2.length; i++) {
@@ -189,6 +134,7 @@ public class EmulatorSettings extends PreferenceActivity implements Preference.O
             pref.setTitle(gameKeysName[i]);
             group.addPreference(pref);
         }
+
         // super scope
         group = (PreferenceGroup) findPreference("superScope");
         KeyPreference pref = new KeyPreference(this);
@@ -206,23 +152,20 @@ public class EmulatorSettings extends PreferenceActivity implements Preference.O
         pref.setTitle(R.string.gamepad_superscope_cursor);
         group.addPreference(pref);
 
-        if (!Wrapper.supportsMultitouch(this)) {
-            findPreference("enableVKeypad").
-                    setSummary(R.string.multitouch_unsupported);
+        if (getBaseContext().getPackageManager().hasSystemFeature(
+                PackageManager.FEATURE_TOUCHSCREEN_MULTITOUCH)) {
+            findPreference("enableVKeypad").setSummary(R.string.multitouch_unsupported);
         }
 
         findPreference("apuEnabled").setOnPreferenceChangeListener(this);
         findPreference("enableLightGun").setOnPreferenceChangeListener(this);
         findPreference("useCCore").setOnPreferenceChangeListener(this);
 
-        findPreference("about").setIntent(new Intent(
-                this, HelpActivity.class).setData(ABOUT_URI));
-        findPreference("upgrade").setIntent(new Intent(
-                Intent.ACTION_VIEW, Uri.parse(MARKET_URI + getPackageName())));
+        findPreference("about").setIntent(new Intent(this, HelpActivity.class).setData(ABOUT_URI));
+        findPreference("upgrade").setIntent(new Intent(Intent.ACTION_VIEW, Uri.parse(MARKET_URI + getPackageName())));
         findPreference("searchRoms").setIntent(getSearchROMIntent());
 
-        findPreference("gameGripper").setIntent(new Intent(
-                Intent.ACTION_VIEW, Uri.parse(GAME_GRIPPER_URI)));
+        findPreference("gameGripper").setIntent(new Intent(Intent.ACTION_VIEW, Uri.parse(GAME_GRIPPER_URI)));
     }
 
     @Override
@@ -251,15 +194,13 @@ public class EmulatorSettings extends PreferenceActivity implements Preference.O
 
         if ("loadKeyProfile".equals(key)) {
             Intent intent = new Intent(this, KeyProfilesActivity.class);
-            intent.putExtra(KeyProfilesActivity.EXTRA_TITLE,
-                    getString(R.string.load_profile));
+            intent.putExtra(KeyProfilesActivity.EXTRA_TITLE, getString(R.string.load_profile));
             startActivityForResult(intent, REQUEST_LOAD_KEY_PROFILE);
             return true;
         }
         if ("saveKeyProfile".equals(key)) {
             Intent intent = new Intent(this, KeyProfilesActivity.class);
-            intent.putExtra(KeyProfilesActivity.EXTRA_TITLE,
-                    getString(R.string.save_profile));
+            intent.putExtra(KeyProfilesActivity.EXTRA_TITLE, getString(R.string.save_profile));
             startActivityForResult(intent, REQUEST_SAVE_KEY_PROFILE);
             return true;
         }
@@ -267,8 +208,7 @@ public class EmulatorSettings extends PreferenceActivity implements Preference.O
     }
 
     public boolean onPreferenceChange(Preference preference, Object newValue) {
-        Toast.makeText(this, R.string.game_reset_needed_prompt,
-                Toast.LENGTH_SHORT).show();
+        Toast.makeText(this, R.string.game_reset_needed_prompt, Toast.LENGTH_SHORT).show();
         return true;
     }
 }

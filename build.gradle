@@ -8,11 +8,28 @@ buildscript {
     }
 }
 
+apply from: 'dependencies.gradle'
+
 allprojects {
     repositories {
         jcenter()
         maven {
             url "https://maven.google.com"
+        }
+    }
+}
+
+allprojects {
+    task hello {
+        doLast { task ->
+            println "I'm $task.project.name"
+        }
+    }
+}
+subprojects {
+    hello {
+        doLast { task ->
+            println "$task.project.name - I depend on K-SNES"
         }
     }
 }

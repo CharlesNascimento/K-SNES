@@ -78,7 +78,7 @@
     <string name="title_other_devices">Other Available Devices</string>
     <string name="button_scan">Scan for devices</string>
 
-    <!-- S9xCheatManager -->
+    <!-- S9xCheatsModule -->
     <string name="no_cheats_help">"You haven't entered any cheats yet.\n\nTo add cheats, press <font fgcolor="#ffffffff"><b>Menu</b></font> and then <font fgcolor="#ffffffff"><b>New cheat</b></font>. Cheat codes can be:\n
 		\n<li><font fgcolor="#ffffffff"><b>Game Genie</b></font></li>
 		\n<li><font fgcolor="#ffffffff"><b>Action Replay</b></font></li>

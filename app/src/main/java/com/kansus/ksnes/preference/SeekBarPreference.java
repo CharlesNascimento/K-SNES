@@ -10,13 +10,11 @@ import android.widget.TextView;
 
 import com.kansus.ksnes.R;
 
-public class SeekBarPreference extends DialogPreference
-        implements SeekBar.OnSeekBarChangeListener {
+public class SeekBarPreference extends DialogPreference implements SeekBar.OnSeekBarChangeListener {
 
     private static final String LOG_TAG = "SeekBarPreference";
     private static final String NS = "http://androidemu.com/apk/res/android";
 
-    private SeekBar seekBar;
     private TextView valueView;
     private int minValue, maxValue;
     private int oldValue, newValue;
@@ -41,20 +39,19 @@ public class SeekBarPreference extends DialogPreference
         if (newValue > maxValue)
             newValue = maxValue;
 
-        seekBar = (SeekBar) view.findViewById(R.id.seekbar);
+        SeekBar seekBar = view.findViewById(R.id.seekbar);
         seekBar.setMax(maxValue - minValue);
         seekBar.setProgress(newValue - minValue);
         seekBar.setSecondaryProgress(newValue - minValue);
         seekBar.setOnSeekBarChangeListener(this);
 
-        valueView = (TextView) view.findViewById(R.id.value);
-        valueView.setText(Integer.toString(newValue));
+        valueView = view.findViewById(R.id.value);
+        valueView.setText(String.valueOf(newValue));
     }
 
-    public void onProgressChanged(SeekBar seekBar,
-                                  int progress, boolean fromUser) {
+    public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
         newValue = progress + minValue;
-        valueView.setText(Integer.toString(newValue));
+        valueView.setText(String.valueOf(newValue));
     }
 
     public void onStartTrackingTouch(SeekBar seekBar) {
@@ -67,9 +64,9 @@ public class SeekBarPreference extends DialogPreference
     protected void onDialogClosed(boolean positiveResult) {
         super.onDialogClosed(positiveResult);
 
-        if (!positiveResult)
+        if (!positiveResult) {
             newValue = oldValue;
-        else {
+        } else {
             oldValue = newValue;
             persistInt(newValue);
         }
@@ -81,10 +78,8 @@ public class SeekBarPreference extends DialogPreference
     }
 
     @Override
-    protected void onSetInitialValue(
-            boolean restoreValue, Object defaultValue) {
-        oldValue = (restoreValue ?
-                getPersistedInt(0) : ((Integer) defaultValue).intValue());
+    protected void onSetInitialValue(boolean restoreValue, Object defaultValue) {
+        oldValue = (restoreValue ? getPersistedInt(0) : (Integer) defaultValue);
         newValue = oldValue;
     }
 }

@@ -12,6 +12,8 @@ android {
 
         testInstrumentationRunner "android.support.test.runner.AndroidJUnitRunner"
 
+        defaultPublishConfig 'release'
+        publishNonDefault true
     }
     buildTypes {
         release {
@@ -28,4 +30,7 @@ dependencies {
     })
     compile 'com.android.support:appcompat-v7:26.+'
     testCompile 'junit:junit:4.12'
+
+    debugCompile project(path: ':abstractemulator', configuration: "debug")
+    releaseCompile project(path: ':abstractemulator', configuration: "release")
 }
