@@ -1,6 +1,8 @@
+# K-SNES
+
 K-SNES is an Android port of the famous Snes9x Super Nintendo emulator.
 
-### Features ###
+## Features
 
 * Multiplayer
 * Customizable on-screen keypad
@@ -11,7 +13,7 @@ K-SNES is an Android port of the famous Snes9x Super Nintendo emulator.
 * Fast-forward
 * Multiple key profiles
 
-### Requirements ###
+## Requirements
 
 * Android Studio 2.3 or newer
 * Android SDK
@@ -22,11 +24,11 @@ K-SNES is an Android port of the famous Snes9x Super Nintendo emulator.
 * CMake
 * LLDB
 
-### Dependencies ###
+## Dependencies
 
 * com.android.support:support-v4:26.0.0
 
-### Build ###
+## Build
 
 Follow these steps to get K-SNES up and running:
 
@@ -37,12 +39,6 @@ Follow these steps to get K-SNES up and running:
 5. Click "Apply" and wait for the installation to complete
 6. Since gradle and CMake take care of the building process, you just need to run the project
 
-### Credits ###
+## License
 
-* Charles Nascimento (charles.si.ufs@gmail.com)
-* Ítalo Oliveira ()
-* Ariê Rodrigues ()
-
-### Donation ###
-
-Maybe in the future...
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
